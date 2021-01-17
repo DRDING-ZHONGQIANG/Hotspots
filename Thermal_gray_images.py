@@ -45,10 +45,9 @@ WHITE  = (255, 255, 255)
 YELLOW = (0, 255, 230) 
 BLACK  = (0, 0, 0)
 LIGHT_GRAY    = (165, 165, 165)
-
 Debug = False
 
-def hotspot_images(directory, filename): 
+def optical_xray_images(directory, filename): 
     # Read image
     in_full_path  = os.path.join(directory, filename)     
     img, path, filename = pcv.readimage(in_full_path, mode="rgb")
@@ -64,28 +63,37 @@ def hotspot_images(directory, filename):
 
 def smooth(org, pos):
     optical = org.copy()
-    x_limt = org.shape[0]
-    y_limt = org.shape[1]
+    x_limit = org.shape[0]
+    y_limit = org.shape[1]
     for i, item in enumerate(pos):
         i = item[0]
-        j = item[1]
-        
-        if ((i > 2) and (i < x_limt -2) and (j > 2) and (j < y_limt -2)):          
-            org[i,j][0] = med([org[i-1,j-1][0],org[i-1,j][0],org[i-1,j+1][0], 
-                          org[i,j-1][0], org[i,j+1][0], org[i+1,j-1][0], org[i+1,j][0], org[i+1,j+1][0]])                            
-            org[i,j][1] = org[i,j][0]                            
-            org[i,j][2] = org[i,j][0]
+        j = item[1]        
+        org[i,j][0] = median_choose(org, i, j, 9, x_limit,y_limit) 
+        org[i,j][1] = org[i,j][0]                            
+        org[i,j][2] = org[i,j][0]       
     return optical
+
+def median_choose(org, pixel_x, pixel_y, size, x_limit,y_limit):     
+    
+    matrix_size = int((size - 1)/2)
+    pixels = []
+    for j in range(matrix_size):
+          if (pixel_y - j) > 0:
+                pixels.append(org[pixel_x,pixel_y-j][0])
+          if ((pixel_y + j ) < y_limit): 
+                pixels.append(org[pixel_x,pixel_y+j][0])     
+    for i in range(matrix_size):
+        for j in range(matrix_size):      
+            if ((pixel_x -i) > 0) and (pixel_y - j) > 0:
+                pixels.append(org[pixel_x-i,pixel_y-j][0])
+            if ((pixel_x +i) < x_limit) and ((pixel_y +j ) < y_limit): 
+                pixels.append(org[pixel_x+i,pixel_y+j][0])                 
+    return med(pixels)
 
 def med(points):    
     points = np.sort(points, axis = 0)    
     n = len(points) 
     return points[n//2] 
-
-
-def thermal_image(org, mask):    
-    thermal = cv2.bitwise_and(org, org,mask = mask)   
-    return  thermal
 
 def optical_image(org, thermal):
     optical = org - thermal
@@ -108,17 +116,28 @@ def optical_image_org(org):
                      pos.append((i,j))
     return org, pos
 
-def pixel_in_GRAY_COLORMAP(pixel):
-    
+def pixel_in_GRAY_COLORMAP(pixel):    
     if (pixel[0] == WHITE[0]) and (pixel[1] == WHITE[1]) and (pixel[2] == WHITE[2]):
         return False        
     if (pixel[0] == pixel[1]) and (pixel[1] == pixel[2]):
-        return True  
+        return True 
+    
+    delta1 = int(abs(int(pixel[0])-int(pixel[1])))
+    delta2 = int(abs(int(pixel[0])-int(pixel[2])))
+    delta3 = int(abs(int(pixel[1])-int(pixel[2])))
+    low_threshold = 1
+    high_threshold =10
+    
+    if (low_threshold < delta1 < high_threshold) and (low_threshold < delta2 < high_threshold) and (low_threshold < delta3 < high_threshold):
+       return True
+   
     return False
 
 def main():
         
-    if Debug == False:    
+    if Debug == False: 
+        '''
+        directory = 'c:/projects/202010'
         files = ('SI20S1-01720image2.bmp' , 'SI20S1-01720image3.bmp',
         'SI20S1-01891image2.bmp' , 'SI20S1-01891image3.bmp',
         'SI20S1-01984image1.bmp', 'SI20S1-01984image2.bmp' , 
@@ -126,12 +145,25 @@ def main():
         'SI20S1-02244image1.bmp', 'SI20S1-02244image2.bmp' , 'SI20S1-02244image3.bmp',
         'SI20S1-02361image1.bmp', 'SI20S1-02361image2.bmp' , 'SI20S1-02361image3.bmp',
         'SI20S1-02361image4.bmp', 'SI20S1-02361image5.bmp' , 'SI20S1-02361image6.bmp')
-    else:
-       files = ('SI20S1-02244image2.bmp','SI20S1-01720image3.bmp' )  
-    
-    directory = 'c:/projects/202010'
+        '''
+        directory = 'c:/projects/202011/package'
+        files  = ('SI15A1-01135 M2673B PG-LQFP-144 image1.jpg',
+                 'SI16A1-00280 M2673B PG-LQFP-144 image1.jpg',
+                 'SI16A1-00281 M2673B PG-LQFP-144 image1.jpg','SI16A1-00636 M2617A PG-TQFP-100 image1.jpg',
+                 'SI16A1-00636 M2617A PG-TQFP-100 image2.jpg','SI16A1-00730 M1747C PG-BGA-416 image1.png',
+                 'SI16A1-00730 M1747C PG-BGA-416 image2.png','SI16A1-00730 M1747C PG-BGA-416 image3.jpg',
+                 'SI17A1-00332 M1947B PG-LQFP-176 image1.png','SI17A1-01026 M2682B PG-LQFP-144 image1.png',
+                 'SI17A1-01026 M2682B PG-LQFP-144 image2.jpg',
+                 'SI19A1-00410 S7189K PG-VQFN-48 image1.png', 'SI19A1-00484 M2662C PG-LQFP-100 image3.jpg')
+                 #'SI19A1-00484 M2662C PG-LQFP-100 image1.png','SI19A1-00484 M2662C PG-LQFP-100 image2.png')        
+             
+    else:      
+       directory = 'c:/projects/202010'
+       files = ('SI20S1-02244image2.bmp', 'SI20S1-02244image3.bmp')   
+      
+   
     for i, filename in enumerate(files):
-        hotspot_images(directory, filename)       
+        optical_xray_images(directory, filename)     
     
     return
    
